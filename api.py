@@ -35,15 +35,23 @@ def api_transactions():
 @app.route('/api/CustomerAccounts/GetCustomerAccountByNumber', methods=['GET'])
 def api_get_account_by_number():
     query_parameters = request.args
-    account_id = query_parameters.get('account_id')
-    return Account.getAccountByNumber(account_id)
+    account_id = int(query_parameters.get('account_id'))
+    status = Account.getAccountByNumber(account_id)
+    if status == -1:
+        return f"<h1>Error: Customer account {account_id} not found</h1>"
+    else:
+        return jsonify(status)
 
 # GET customer info by ID
 @app.route('/api/Customers/GetCustomerByNumber', methods=['GET'])
 def api_get_customer_by_number():
     query_parameters = request.args
-    customer_id = query_parameters.get('customer_id')
-    return Customer.getCustomerByNumber(customer_id)
+    customer_id = int(query_parameters.get('customer_id'))
+    status = Customer.getCustomerByNumber(customer_id)
+    if status == -1:
+        return f"<h1>Error: Customer ID {customer_id} not found</h1>"
+    else:
+        return jsonify(status)
 
 # POST new customer account
 @app.route('/api/CustomerAccounts/NewCustomer', methods = ['POST'])

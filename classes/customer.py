@@ -15,7 +15,8 @@ class Customer:
     def getAccountId(self):
         return self.account_id
 
-    def getCustomerByNumber(self, customer_id):
+    @staticmethod
+    def getCustomerByNumber(customer_id):
         # assuming set of all acc is called accounts
         for i in dc.customers:
             if customer_id == i['id']:
