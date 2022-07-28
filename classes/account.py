@@ -1,8 +1,6 @@
 import random
-import sys
-sys.path.insert(0, '../data')
-from data.accounts import accounts as da
-
+# import data.accounts as da
+import classes.data.accounts as da
 class Account:
 
     currId = 3
@@ -37,15 +35,15 @@ class Account:
                 print("Negative")
                 return
             self.balance -= amount
-
-    def getAccount(self, accNum):
+    
+    @staticmethod
+    def getAccountByNumber(accNum):
         # assuming set of all acc is called accounts
-        for i in da:
+        for i in da.accounts:
             if accNum == i['accountNumber']:
-                return i['accountNumber']
-            else:
-                return -1 # some sort of error
+                return i
+        return -1
 
 
 acc = Account(2)
-print(acc.getAccount(1))
+print(acc.getAccountByNumber(1))

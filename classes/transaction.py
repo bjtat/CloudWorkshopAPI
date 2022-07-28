@@ -1,5 +1,4 @@
 import random
-from data.transactions import transactions
 
 class Transaction: 
 
@@ -9,15 +8,12 @@ class Transaction:
         self.account_id = account.id
         self.amount = amount
         self.applyTransaction(self, account)
-        transactions.append({'id': self.id,
-                            'amount': self.amount,
-                            'account_id': self.account_id,
-                            'transaction_type': self.transaction_type})
 
+    # Apply the transaction to the account balance
     def applyTransaction(self, account):
         if self.transactionType == "Debit":
             account.balance -= self.amount
-        else:
+        elif self.transactionType == "Credit":
             account.balance += self.amount 
 
     
