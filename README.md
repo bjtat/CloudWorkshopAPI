@@ -1,1 +1,0 @@
-# vmware-working-with-cloud
