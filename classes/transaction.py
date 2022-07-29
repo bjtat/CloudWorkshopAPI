@@ -9,6 +9,9 @@ class Transaction:
         self.amount = amount
         self.applyTransaction(self, account)
 
+    def getId(self):
+        return self.id
+
     # Apply the transaction to the account balance
     def applyTransaction(self, account):
         if self.transactionType == "Debit":

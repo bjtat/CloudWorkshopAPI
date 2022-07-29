@@ -1,13 +1,15 @@
 import classes.data.customers as dc
+import random
 
 class Customer:
-    curr_id = 2
     def __init__(self, first_name, last_name, account_id):
-        self.id = curr_id
+        self.id = random.randrange(1000,5000)
         self.first_name = first_name
         self.last_name = last_name
         self.account_id = account_id
-        curr_id += 1
+
+    def getId(self):
+        return self.id
 
     def getName(self):
         return (self.first_name + " " + self.last_name)

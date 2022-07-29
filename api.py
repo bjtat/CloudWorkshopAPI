@@ -6,10 +6,50 @@ import classes.data.transactions as dt
 from classes.account import Account
 from classes.customer import Customer
 from classes.transaction import Transaction
+from flask_dynamo import Dynamo
+from boto3.session import Session
 
+session = Session(
+    aws_access_key_id="AKIAWLU3NUWTHCSCSZUR",
+    aws_secret_access_key="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",
+    region_name="us-west-1"
+)
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
+app.config['DYNAMO_SESSION'] = session
+app.config["DYNAMO_TABLES"] = [
+    {
+        "TableName":'accounts',
+        "KeySchema": [
+            { "AttributeName": "id", "KeyType": "HASH" }
+        ],
+        "AttributeDefinitions": [
+            { "AttributeName": "id", "AttributeType": "N" }
+        ]
+    }, 
+    {
+        "TableName":'customers',
+        "KeySchema": [
+            { "AttributeName": "id", "KeyType": "HASH" }
+        ],
+        "AttributeDefinitions": [
+            { "AttributeName": "id", "AttributeType": "N" }
+        ]
+    }, 
+    {
+        "TableName":'transactions',
+        "KeySchema": [
+            { "AttributeName": "id", "KeyType": "HASH" }
+        ],
+        "AttributeDefinitions": [
+            { "AttributeName": "id", "AttributeType": "N" }
+        ]
+    }
+]
+
+dynamo = Dynamo()
+dynamo.init_app(app)
 
 # GET homepage
 @app.route('/', methods=['GET'])
@@ -19,17 +59,20 @@ def home():
 # GET all customers
 @app.route('/api/Customers/all', methods=['GET'])
 def api_customers():
-    return jsonify(dc.customers)
+    customers_table = dynamo.tables['customers']
+    return jsonify(customers_table.scan())
 
 # GET all accounts
 @app.route('/api/CustomerAccounts/all', methods=['GET'])
 def api_accounts():
-    return jsonify(da.accounts)
+    accounts_table = dynamo.tables['accounts']
+    return jsonify(accounts_table.scan())
 
 # GET all transactions
 @app.route('/api/Transactions/all', methods=['GET'])
 def api_transactions():
-    return jsonify(dt.transactions)
+    transactions_table = dynamo.tables['transactions']
+    return jsonify(transactions_table.scan())
 
 # GET account info by ID
 @app.route('/api/CustomerAccounts/GetCustomerAccountByNumber', methods=['GET'])
@@ -53,24 +96,30 @@ def api_get_customer_by_number():
     else:
         return jsonify(status)
 
-# POST new customer account
-@app.route('/api/CustomerAccounts/NewCustomer', methods = ['POST'])
+# POST new customer record and new account record
+@app.route('/api/Customers/NewCustomer', methods = ['POST'])
 def api_post_new_customer():
     query_parameters = request.args
     fname = query_parameters.get('first_name')
     lname = query_parameters.get('last_name')
-    accountId = query_parameters.get('accountId')
+    accountId = query_parameters.get('account_id')
     newCustomer = Customer(fname, lname, accountId)
-    dc.append(newCustomer)
+    dynamo.tables['customers'].put_item(Item={
+        'id': newCustomer.getId(),
+        'first_name': fname,
+        'last_name': lname,
+        'account_id': accountId,
+    })
+    return "it works!"
     
-# PUT close customer account
-@app.route('/api/CustomerAccounts/CloseAccount', methods = ['POST'])
+# PUT close customer account record
+@app.route('/api/CustomerAccounts/CloseAccount', methods = ['PUT'])
 def api_close_account():
     query_parameters = request.args
     account_number = query_parameters.get('account_number')
     return Account.getAccountByNumber(account_number).closeAccount()
 
-# POST apply transaction
+# POST create transaction record and apply it to the corresponding account
 @app.route('/api/CustomerAccounts/ApplyTransactionToCustomerAccountAsync', methods=['POST'])
 def api_apply_transaction():
     query_parameters = request.args
@@ -78,6 +127,12 @@ def api_apply_transaction():
     amount = query_parameters.get('amount')
     account_id = query_parameters.get('account_id')
     newTransaction = Transaction(transaction_type, amount, Customer.getCustomer(account_id))
-    dt.append(newTransaction)
+    dynamo.tables['transactions'].put_item(data={
+        'id': newTransaction.getId(),
+        'amount': amount,
+        'transaction_type': transaction_type,
+        'account_id': account_id
+    })
+    #dt.append(newTransaction)
     
 app.run()
