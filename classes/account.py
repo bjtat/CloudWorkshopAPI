@@ -5,9 +5,9 @@ class Account:
 
     currId = 3
 
-    def __init__(self, balance):
+    def __init__(self, balance, accountnum):
         self.id = self.currId
-        self.accountNumber = random.randint(3, 1000)
+        self.accountNumber = accountnum
         self.balance = balance
         self.status = 1
         self.currId+=1
@@ -35,15 +35,7 @@ class Account:
                 print("Negative")
                 return
             self.balance -= amount
-    
-    @staticmethod
-    def getAccountByNumber(accNum):
-        # assuming set of all acc is called accounts
-        for i in da.accounts:
-            if accNum == i['accountNumber']:
-                return i
-        return -1
 
 
-acc = Account(2)
-print(acc.getAccountByNumber(1))
+# acc = Account(2)
+# print(acc.getAccountByNumber(1))

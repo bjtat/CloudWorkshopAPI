@@ -8,6 +8,10 @@ from classes.customer import Customer
 from classes.transaction import Transaction
 from flask_dynamo import Dynamo
 from boto3.session import Session
+from boto3.dynamodb.conditions import Key
+from decimal import Decimal
+import random
+import string
 
 session = Session(
     aws_access_key_id="AKIAWLU3NUWTHCSCSZUR",
@@ -60,41 +64,38 @@ def home():
 @app.route('/api/Customers/all', methods=['GET'])
 def api_customers():
     customers_table = dynamo.tables['customers']
-    return jsonify(customers_table.scan())
+    return jsonify({'Customers': customers_table.scan().get('Items')})
 
 # GET all accounts
 @app.route('/api/CustomerAccounts/all', methods=['GET'])
 def api_accounts():
     accounts_table = dynamo.tables['accounts']
-    return jsonify(accounts_table.scan())
+    return jsonify({'Accounts': accounts_table.scan().get('Items')})
 
 # GET all transactions
 @app.route('/api/Transactions/all', methods=['GET'])
 def api_transactions():
     transactions_table = dynamo.tables['transactions']
-    return jsonify(transactions_table.scan())
+    return jsonify({'Transactions': transactions_table.scan().get('Items')})
 
-# GET account info by ID
-@app.route('/api/CustomerAccounts/GetCustomerAccountByNumber', methods=['GET'])
-def api_get_account_by_number():
+# GET account info by Account Number
+@app.route('/api/CustomerAccounts/GetCustomerByAccountNumber', methods=['GET'])
+def api_get_customer_by_account():
     query_parameters = request.args
-    account_id = int(query_parameters.get('account_id'))
-    status = Account.getAccountByNumber(account_id)
-    if status == -1:
-        return f"<h1>Error: Customer account {account_id} not found</h1>"
+    account_id = query_parameters.get('account_id')
+    customers_table = dynamo.tables['customers']
+    accounts_table = dynamo.tables['accounts']
+    try:
+        customer_info = customers_table.query(
+            KeyConditionExpression=Key('account_id').eq(account_id)
+        )
+        account_info = accounts_table.query(
+            KeyConditionExpression=Key('account_id').eq(account_id)
+        )
+    except:
+        return f"Error: Customer account {account_id} not found"
     else:
-        return jsonify(status)
-
-# GET customer info by ID
-@app.route('/api/Customers/GetCustomerByNumber', methods=['GET'])
-def api_get_customer_by_number():
-    query_parameters = request.args
-    customer_id = int(query_parameters.get('customer_id'))
-    status = Customer.getCustomerByNumber(customer_id)
-    if status == -1:
-        return f"<h1>Error: Customer ID {customer_id} not found</h1>"
-    else:
-        return jsonify(status)
+        return jsonify({'Customer': customer_info.get('Items')[0]}, {'Account': account_info.get('Items')[0]})
 
 # POST new customer record and new account record
 @app.route('/api/Customers/NewCustomer', methods = ['POST'])
@@ -102,37 +103,99 @@ def api_post_new_customer():
     query_parameters = request.args
     fname = query_parameters.get('first_name')
     lname = query_parameters.get('last_name')
-    accountId = query_parameters.get('account_id')
-    newCustomer = Customer(fname, lname, accountId)
-    dynamo.tables['customers'].put_item(Item={
-        'id': newCustomer.getId(),
-        'first_name': fname,
-        'last_name': lname,
-        'account_id': accountId,
-    })
-    return "it works!"
+    balance = query_parameters.get('balance')
+    res = ''.join(random.choices(string.ascii_lowercase +
+                             string.digits, k=7))
+    try:
+        dynamo.tables['customers'].put_item(Item={
+            'first_name': fname,
+            'last_name': lname,
+            'account_id': res
+        })
+        dynamo.tables['accounts'].put_item(Item={
+            'account_status': 1,
+            'balance': balance,
+            'account_id': res
+        })
+        return f"Successfully created customer and account entry for {fname} {lname}"
+    except:
+        return "Error: Could not create database entry"
+        
     
-# PUT close customer account record
-@app.route('/api/CustomerAccounts/CloseAccount', methods = ['PUT'])
+# POST close customer account record
+@app.route('/api/CustomerAccounts/CloseAccount', methods = ['POST'])
 def api_close_account():
     query_parameters = request.args
-    account_number = query_parameters.get('account_number')
-    return Account.getAccountByNumber(account_number).closeAccount()
+    account_id = query_parameters.get('account_id')
+    try:
+            
+        dynamo.tables['accounts'].update_item(
+            Key = {'account_id': account_id},
+            UpdateExpression = "SET account_status = :s",
+            ExpressionAttributeValues = {
+                ":s" : 0
+            }
+        )
+    except:
+        return f"Error: Could not access account {account_id}"
+    else:
+        return f"Successfully closed account {account_id}"
 
 # POST create transaction record and apply it to the corresponding account
 @app.route('/api/CustomerAccounts/ApplyTransactionToCustomerAccountAsync', methods=['POST'])
 def api_apply_transaction():
     query_parameters = request.args
     transaction_type = query_parameters.get('transaction_type')
-    amount = query_parameters.get('amount')
     account_id = query_parameters.get('account_id')
-    newTransaction = Transaction(transaction_type, amount, Customer.getCustomer(account_id))
-    dynamo.tables['transactions'].put_item(data={
-        'id': newTransaction.getId(),
+    amount = query_parameters.get('amount')
+
+    try:
+        assert Decimal(amount) >= 0
+    except AssertionError: 
+        return "Error: Transaction amount must be at least 0"
+
+    try:
+        assert transaction_type == "Debit" or transaction_type == "Credit"
+    except AssertionError: 
+        return "Error: Transaction type must either be 'Debit' or 'Credit' (case-sensitive)"
+
+    query = dynamo.tables['accounts'].query(
+        KeyConditionExpression=Key('account_id').eq(account_id)
+    )
+    balance = Decimal(query["Items"][0]["balance"])
+    if transaction_type == "Debit":
+        balance -= Decimal(amount)
+    elif transaction_type == "Credit": 
+        balance += Decimal(amount)
+
+    try:
+        assert balance >= 0
+    except AssertionError:
+        return "Error: Transaction denied due to balance going below 0"
+
+    # Post transaction to transactions table
+    transaction_id = ''.join(random.choices(string.ascii_lowercase +
+                             string.digits, k=7))
+    dynamo.tables['transactions'].put_item(Item={
+        'id': transaction_id,
         'amount': amount,
         'transaction_type': transaction_type,
         'account_id': account_id
     })
-    #dt.append(newTransaction)
+
+    # Post update to balance in accounts table
+    # Return relevant information
+    return (
+        "Account ID: " + str(account_id) + "\nOld balance: " 
+        + str(query["Items"][0]["balance"]) + "\nNew balance: " 
+        + str(dynamo.tables['accounts'].update_item(
+            Key = {'account_id': account_id}, 
+            UpdateExpression = "SET balance = :b",
+            ExpressionAttributeValues = {
+                ":b" : balance
+            },
+            ReturnValues = "UPDATED_NEW"
+        )["Attributes"]["balance"])
+    )
     
 app.run()

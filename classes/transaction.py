@@ -18,5 +18,4 @@ class Transaction:
             account.balance -= self.amount
         elif self.transactionType == "Credit":
             account.balance += self.amount 
-
     
